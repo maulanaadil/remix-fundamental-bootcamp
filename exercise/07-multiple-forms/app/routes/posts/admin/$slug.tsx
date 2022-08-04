@@ -8,8 +8,12 @@ import {
 } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
-// 🐨 you'll need to import `deletePost` and `updatePost` here as well.
-import { createPost, getPost } from "~/models/post.server";
+import {
+  createPost,
+  getPost,
+  deletePost,
+  updatePost,
+} from "~/models/post.server";
 
 export async function loader({ params }: LoaderArgs) {
   invariant(params.slug, "slug not found");
@@ -22,13 +26,15 @@ export async function loader({ params }: LoaderArgs) {
   return json({ post });
 }
 
-// 🐨 you'll need the `params` in the action
-export async function action({ request }: ActionArgs) {
+export async function action({ request, params }: ActionArgs) {
   const formData = await request.formData();
-  // 🐨 grab the "intent" from the form data
+  const intent = formData.get("intent");
 
-  // 🐨 if the intent is "delete" then delete the post
-  // and redirect to "/posts/admin"
+  invariant(typeof params.slug === "string", "slug not provided");
+  if (intent === "delete") {
+    await deletePost(params.slug);
+    return redirect("/posts/admin");
+  }
 
   const title = formData.get("title");
   const slug = formData.get("slug");
@@ -48,9 +54,11 @@ export async function action({ request }: ActionArgs) {
   invariant(typeof slug === "string", "slug must be a string");
   invariant(typeof markdown === "string", "markdown must be a string");
 
-  // 🐨 if the params.slug is "new" then create a new post
-  // otherwise update the post.
-  await createPost({ title, slug, markdown });
+  if (params.slug === "new") {
+    await createPost({ title, slug, markdown });
+  } else {
+    await updatePost({ title, slug, markdown });
+  }
 
   return redirect("/posts/admin");
 }
@@ -62,13 +70,10 @@ export default function PostAdmin() {
   const errors = useActionData<typeof action>();
 
   const transition = useTransition();
-  // 🐨 now that there can be multiple transitions on this page
-  // we'll need to disambiguate between them. You can do that with
-  // the "intent" in the form data.
-  // 💰 transition.submission?.formData.get("intent")
-  const isCreating = Boolean(transition.submission);
-  // 🐨 create an isUpdating and isDeleting variable based on the transition
-  // 🐨 create an isNewPost variable based on whether there's a post on `data`.
+  const isCreating = transition.submission?.formData.get("intent") === "create";
+  const isUpdating = transition.submission?.formData.get("intent") === "update";
+  const isDeleting = transition.submission?.formData.get("intent") === "delete";
+  const isNewPost = !data.post;
 
   return (
     <Form method="post">
@@ -120,22 +125,29 @@ export default function PostAdmin() {
           defaultValue={data?.post?.markdown}
         />
       </p>
-      {/* 🐨 If we're editing an existing post, then render a delete button */}
-      {/* 💰 The button's "name" prop should be "intent" and the "value" prop should be "delete" */}
-      {/* 💰 Here's some good looking classes for it: className="rounded bg-red-500 py-2 px-4 text-white hover:bg-red-600 focus:bg-red-400 disabled:bg-red-300" */}
-      {/* 🐨 It should say "Deleting..." when a submission with the intent "delete" is ongoing, and "Delete" otherwise. */}
-      <p className="text-right">
+      <div className="flex justify-end gap-4">
+        {isNewPost ? null : (
+          <button
+            type="submit"
+            name="intent"
+            value="delete"
+            className="rounded bg-red-500 py-2 px-4 text-white hover:bg-red-600 focus:bg-red-400 disabled:bg-red-300"
+            disabled={isDeleting}
+          >
+            {isDeleting ? "Deleting..." : "Delete Post"}
+          </button>
+        )}
         <button
           type="submit"
-          // 🐨 add a name of "intent" and a value of "create" if this is a new post or "update" if it's an existing post
+          name="intent"
+          value={isNewPost ? "create" : "update"}
           className="rounded bg-blue-500 py-2 px-4 text-white hover:bg-blue-600 focus:bg-blue-400 disabled:bg-blue-300"
-          // 🐨 this should be disabled if we're creating *or* updating
-          disabled={isCreating}
+          disabled={isCreating || isUpdating}
         >
-          {/* 🐨 if this is a new post then this works fine as-is, but if we're updating it should say "Updating..." / "Update" */}
-          {isCreating ? "Creating..." : "Create Post"}
+          {isNewPost ? (isCreating ? "Creating..." : "Create Post") : null}
+          {isNewPost ? null : isUpdating ? "Updating..." : "Update Post"}
         </button>
-      </p>
+      </div>
     </Form>
   );
 }
