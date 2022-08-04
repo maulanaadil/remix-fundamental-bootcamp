@@ -17,13 +17,21 @@ export default function PostAdmin() {
           <ul>
             {posts.map((post) => (
               <li key={post.slug}>
-                <Link to={post.slug} className="text-blue-600 underline">
+                <Link
+                  to={post.slug}
+                  className="text-blue-600 underline"
+                  prefetch="intent"
+                >
                   {post.title}
                 </Link>
               </li>
             ))}
             <li>
-              <Link to="new" className="text-blue-600 underline">
+              <Link
+                to="new"
+                className="text-blue-600 underline"
+                prefetch="intent"
+              >
                 ➕ Create New Post
               </Link>
             </li>
